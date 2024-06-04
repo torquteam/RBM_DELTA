@@ -3,12 +3,12 @@ import numpy as np
 import time
 import ctypes
 import sys
-sys.path.append('/home/msals97/Desktop/RBM/RBM')
+sys.path.append('/Users/marcsalinas/Desktop/RBM')
 import functions as func
 
 # Specify the nucleus
 ##################################################################
-nucleus = 9
+nucleus = 7
 ##################################################################
 
 # Specify the number of proton and neutron states
@@ -75,15 +75,15 @@ def Wkskin(x):
 ##################################################
 dir = f"{A},{Z}/{A},{Z},Data"
 num_basis_states_f, num_basis_states_g, num_basis_states_c, num_basis_states_d, num_basis_meson = func.import_basis_numbers(A,Z)
-param_set = func.load_data("param_sets_gar.txt")
-actual_results = func.load_data(dir + f"/{A},{Z}Observables_gar.txt")
+param_set = func.load_data("validation_DINO_RBM.txt")
+actual_results = func.load_data(dir + f"/{A},{Z}Observables.txt")
 
 # Initial guess setup
 ##################################################
-energy_guess = 60.1
+energy_guess = 40.0
 en_n = [energy_guess]*nstates_n
 en_p = [energy_guess]*nstates_p
-initial_guess_array = func.initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson[0],num_basis_meson[1],num_basis_meson[2],num_basis_meson[3],en_n,en_p)
+initial_guess_array = func.initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson[0],num_basis_meson[1],num_basis_meson[2],num_basis_meson[3],num_basis_meson[4],en_n,en_p)
 
 # Nonlinear solve
 ##############################################################################
@@ -91,11 +91,11 @@ start_time = time.time()
 errBA = 0
 errRch = 0
 errWk = 0
-nruns = 1
-for i in range(nruns):
-    params = param_set[i%50,:]
-    params = [ 4.91535057e+02,  1.13540860e+02,  2.02292742e+02,  7.83608188e+01, 2.41408501e+00,  8.36385008e-03,  3.91298477e-02, -1.50364299e-03]
-
+nruns = len(param_set)
+for i in range(1):
+    params = param_set[i,:]
+    #params = [4.89445423e+02,  1.02393497e+02,  1.75357860e+02,  5.56211986e+02,7.32658996e+02,  3.84365875e+00, -6.73118413e-03,  2.13691817e-02,1.83094957e-03]
+    params = [4.92341077e+02, 1.07804520e+02, 1.86997023e+02, 1.48354499e+02, 8.98367209e+01, 3.05434252e+00, 1.98682552e-03, 3.20014208e-02, 6.57430595e-03]
     params_array = np.array(params, dtype=np.double)
 
     solution = root(c_function_wrapper, x0=initial_guess_array, args=(params_array,), jac=compute_jacobian_wrapper, method='hybr',options={'col_deriv': 1, 'xtol': 1e-8})
@@ -108,12 +108,12 @@ for i in range(nruns):
     #print(solution.x)
 
     # compute the average err of each observable
-    errBA = errBA + abs(actual_results[i%50][0] - BA_mev)
-    errRch = errRch + abs(actual_results[i%50][1] - Rcharge)
+    errBA = errBA + abs(actual_results[i][0] - BA_mev)
+    errRch = errRch + abs(actual_results[i][1] - Rcharge)
     #errWK = errWk + abs(actual_results[i%50][2] - FchFwk)
     
 end_time = time.time()
-print("SVD took:{:.4f} seconds".format(end_time - start_time))
+print("RBM took:{:.4f} seconds".format(end_time - start_time))
 print("{:.4f}s/run".format((end_time - start_time)/nruns))
 
 errBA = errBA/nruns

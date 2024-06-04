@@ -3,12 +3,18 @@ import numpy as np
 import time
 import ctypes
 import sys
-sys.path.append('/home/msals97/Desktop/RBM/RBM')
+import os
+sys.path.append('/Users/marcsalinas/Desktop/RBM')
 import functions as func
+from scipy.integrate import simpson as simps
+import matplotlib.pyplot as plt
+
+current_directory = os.getcwd()
+print("Current Working directory:", current_directory)
 
 # Specify the nucleus
 ##################################################################
-nucleus = 2
+nucleus = 7
 ##################################################################
 
 # Specify the number of proton and neutron states
@@ -26,7 +32,8 @@ Z = Z_list[nucleus]
 mNuc_mev = 939
 
 # Load C functions shared library
-lib = ctypes.CDLL(f'./{A},{Z}/c_functions_greedy.so')
+library_path = os.path.join(current_directory, f"{A},{Z}/c_functions_greedy.so")
+lib = ctypes.CDLL(library_path)
 
 # Define the argument and return types of the functions
 lib.c_function.argtypes = [np.ctypeslib.ndpointer(dtype=np.double, ndim=1, flags='C_CONTIGUOUS'),
@@ -57,19 +64,19 @@ def c_function_wrapper(x,params,num_basis_states_wf,num_basis_states_meson):
 def c_wrapper2(w,params,num_basis_states_wf,num_basis_states_meson):
     nstates_wf = nstates_n*2 + nstates_p*2
     n_meson = 5
-    n_total = nstates_wf*5 + n_meson*7 + nstates_n + nstates_p
+    n_total = nstates_wf*6 + n_meson*7 + nstates_n + nstates_p
     x = np.zeros(n_total, dtype=np.double)
     count = 0
     for i in range(nstates_wf):
         for j in range(0,num_basis_states_wf[i]):   
-            x[5*i+j] = w[count+j]
+            x[6*i+j] = w[count+j]
         count = count + num_basis_states_wf[i]
     for i in range(n_meson):
         for j in range(0,num_basis_states_meson[i]):
-            x[5*nstates_wf+7*i+j] = w[count+j]
+            x[6*nstates_wf+7*i+j] = w[count+j]
         count = count + num_basis_states_meson[i]
     for i in range(nstates_n+nstates_p):
-        x[5*nstates_wf+7*n_meson+i] = w[count+i]
+        x[6*nstates_wf+7*n_meson+i] = w[count+i]
     return c_function_wrapper(x,params,num_basis_states_wf,num_basis_states_meson)
 
 def compute_jacobian_wrapper(x,params):
@@ -80,19 +87,19 @@ def compute_jacobian_wrapper(x,params):
 def BA_function(x,params,num_basis_states_wf,num_basis_states_meson):
     nstates_wf = nstates_n*2 + nstates_p*2
     n_meson = 5
-    n_total = nstates_wf*5 + n_meson*7 + nstates_n + nstates_p
+    n_total = nstates_wf*6 + n_meson*7 + nstates_n + nstates_p
     w = np.zeros(n_total, dtype=np.double)
     count = 0
     for i in range(nstates_wf):
         for j in range(0,num_basis_states_wf[i]):   
-            w[5*i+j] = x[count+j]
+            w[6*i+j] = x[count+j]
         count = count + num_basis_states_wf[i]
     for i in range(n_meson):
         for j in range(0,num_basis_states_meson[i]):
-            w[5*nstates_wf+7*i+j] = x[count+j]
+            w[6*nstates_wf+7*i+j] = x[count+j]
         count = count + num_basis_states_meson[i]
     for i in range(nstates_n+nstates_p):
-        w[5*nstates_wf+7*n_meson+i] = x[count+i]
+        w[6*nstates_wf+7*n_meson+i] = x[count+i]
     BA = lib.BA_function(w,params,num_basis_states_wf,num_basis_states_meson)
     return BA
 
@@ -111,16 +118,17 @@ num_basis_states_f, num_basis_states_g, num_basis_states_c, num_basis_states_d, 
 
 num_basis_states_wf = np.array(num_basis_states_f+num_basis_states_g+num_basis_states_c+num_basis_states_d, dtype=np.int32)
 num_basis_states_meson = np.array(num_basis_meson, dtype=np.int32)
-print(np.sum(num_basis_states_wf)+np.sum(num_basis_meson))
+print(np.sum(num_basis_states_wf)+np.sum(num_basis_meson),"basis states")
 
-param_set = func.load_data("param_sets_DINO.txt")
+param_set = func.load_data("validation_DINO_RBM.txt")
 actual_results = func.load_data(dir + f"/{A},{Z}Observables.txt")
 n_samples = len(actual_results)
-print(n_samples)
+print(n_samples,"samples")
 
 # Initial guess setup
 ##################################################
-initial_guess_array = func.initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson[0],num_basis_meson[1],num_basis_meson[2],num_basis_meson[3],num_basis_meson[4],[70]*nstates_n,[70]*nstates_p)
+energy_guess = 60.0
+initial_guess_array = func.initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson[0],num_basis_meson[1],num_basis_meson[2],num_basis_meson[3],num_basis_meson[4],[energy_guess]*nstates_n,[energy_guess]*nstates_p)
 
 # Nonlinear solve
 ##############################################################################
@@ -128,13 +136,13 @@ start_time = time.time()
 errBA = 0
 errRch = 0
 errWk = 0
-for i in range(n_samples):
+for i in range(1):
     params = param_set[i,:]
+    params = [4.91160767e+02, 1.05813435e+02, 1.82548004e+02, 1.67125801e+02, 1.10939990e+02, 3.36134447e+00, -1.20853287e-03, 2.80633218e-02, 6.69791611e-03]
     params_array = np.array(params, dtype=np.double)
 
     solution = root(c_wrapper2, x0=initial_guess_array, args=(params_array,num_basis_states_wf,num_basis_states_meson,), jac=None, method='hybr',options={'col_deriv': 1, 'xtol': 1e-8})
-    BA_mev = (BA_function(solution.x,params,num_basis_states_wf,num_basis_states_meson)*13.269584506383948 - 0.75*41.0*A**(-1.0/3.0))/A - 939
-    #print(solution.x)
+    BA_mev = (BA_function(solution.x,params_array,num_basis_states_wf,num_basis_states_meson)*13.269584506383948 - 0.75*41.0*A**(-1.0/3.0))/A - 939
     #Rcharge = Rch(solution.x)
     #FchFwk = Wkskin(solution.x)
     #print(f"Rch = {Rcharge}" )
@@ -155,120 +163,120 @@ errRch = errRch/n_samples
 errWk = errWk/n_samples
 print(errBA, errRch, errWk)
 
-'''
-import matplotlib.pyplot as plt
-rvec = np.loadtxt("208,82/208,82,Data/rvec.txt")
-actual = np.loadtxt("208,82/208,82,Data/neutron/g_wave/state1d3;2.txt")
-#wave = np.loadtxt("208,82/High_fidelity_sol/Ap.txt")
-meson = np.loadtxt("208,82/High_fidelity_sol/meson_fields.txt")/13.269584506383948
-plt.plot(rvec,actual,ls='dashed') #
-#plt.plot(rvec,wave[:,1:]) #
-#plt.plot(rvec,meson[:,1])
-plt.show()
-'''
+########################################################
+####################################################################################
 
-
-def greedy(err, basis, N):
-    flag = False  # Initialize flag
-    count = 0
-    while(count<N):
-        max_index = np.argmax(err)
-        if basis[max_index] == 5:
-            err[max_index] = -100  # Exclude the current maximum from further consideration
-        else:
-            basis[max_index] += 1
-            count += 1
-            err[max_index] = -100  # Exclude the current maximum from further consideration
-    
-    if all(val == 5 for val in basis):
-        flag = True
-    return flag
-
-def import_greedy_config(file_path):
-    try:
-        # Open the file in read mode
-        with open(file_path, "r") as file:
-            # Read the contents of the file
-            data = file.read()
-
-        # Split the data into lines
-        lines = data.split('\n')
-
-        # Initialize an empty list to hold the list of lists
-        result = []
-
-        # Iterate over each line in the input data
-        for line in lines:
-            # Split the line into individual numbers
-            numbers = line.split()
-            # Convert each number to an integer and append to the list
-            result.append([int(num) for num in numbers])
-
-        return result
-
-    except FileNotFoundError:
-        print("File not found.")
-        return None
-
-###############################################################
-real_en_n = np.loadtxt(f"{A},{Z}/{A},{Z}energies_n.txt")
-real_en_p = np.loadtxt(f"{A},{Z}/{A},{Z}energies_p.txt")
-greedy_add = import_greedy_config("/home/msals97/Desktop/RBM/RBM/greedy_configuration.txt")
-improv_metric = np.zeros(len(greedy_add))   # keeps track of average error reduction per/basis
 finalerr = errBA
 num_basis_states_base_f, num_basis_states_base_g, num_basis_states_base_c, num_basis_states_base_d, num_basis_meson = func.import_basis_numbers(A,Z)
+real_en_n = np.loadtxt(f"{A},{Z}/{A},{Z}energies_n.txt")
+real_en_p = np.loadtxt(f"{A},{Z}/{A},{Z}energies_p.txt")
 
+n_labels, state_file_n = func.load_spectrum( dir + "/neutron_spectrum.txt")
+p_labels, state_file_p = func.load_spectrum(dir + "/proton_spectrum.txt")
+
+file_pattern = dir + "/neutron/f_wave/val_{}.txt"
+f_files = [file_pattern.format(n_labels[i]) for i in range(nstates_n)]
+f_fields = [func.load_data(f_file) for f_file in f_files]
+
+file_pattern = dir + "/proton/c_wave/val_{}.txt"
+c_files = [file_pattern.format(p_labels[i]) for i in range(nstates_p)]
+c_fields = [func.load_data(c_file) for c_file in c_files]
+
+r_vec = func.load_data(dir + "/rvec.txt")[1:]
+n_steps = 2
+
+exp = np.loadtxt("exp_data.txt")
+thresh = -0.001*exp[nucleus][2]
+flag = False
 while(finalerr>0.01):
-    BAerr_array = [0.0]*len(greedy_add)
-    test_improv = 0.0
-    for s in range(len(greedy_add)):
-        num_basis_states_f = num_basis_states_base_f
-        num_basis_states_g = num_basis_states_base_g
-        num_basis_states_c = num_basis_states_base_c
-        num_basis_states_d = num_basis_states_base_d
-        for i in range(len(greedy_add[s])):
-            err_n = [0.0]*nstates_n
-            err_p = [0.0]*nstates_p
-            errBA = 0.0
-            num_basis_states_wf = np.array(num_basis_states_f+num_basis_states_g+num_basis_states_c+num_basis_states_d, dtype=np.int32)
-            initial_guess_array = func.initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson[0],num_basis_meson[1],num_basis_meson[2],num_basis_meson[3],num_basis_meson[4],[20]*nstates_n,[20]*nstates_p)
-            for j in range(n_samples):
-                params = param_set[j,:]
-                params_array = np.array(params, dtype=np.double)
-                solution = root(c_wrapper2, x0=initial_guess_array, args=(params_array,num_basis_states_wf,num_basis_states_meson,), jac=None, method='hybr',options={'col_deriv': 1, 'xtol': 1e-8})
-                BA_mev = (BA_function(solution.x,params_array,num_basis_states_wf,num_basis_states_meson)*13.269584506383948 - 0.75*41.0*A**(-1.0/3.0))/A - 939
-                for k in range(nstates_n):
-                    err_n[k] = err_n[k] + abs(solution.x[k-nstates_n-nstates_p]-real_en_n[j,k])
-                for k in range(nstates_p):
-                    err_p[k] = err_p[k] + abs(solution.x[k-nstates_p]-real_en_p[j,k])
-                errBA = errBA + abs(actual_results[j][0] - BA_mev)
-            errBA = errBA/n_samples
 
-            print(num_basis_states_f)
-            print(num_basis_states_c)
-            
-            err_n = [element/n_samples for element in err_n]
-            err_p = [element/n_samples for element in err_p]
-            greedy_basis = num_basis_states_f+num_basis_states_c
-            err = err_n + err_p
-            greedy(err,greedy_basis,greedy_add[s][i])
-            num_basis_states_f = greedy_basis[:nstates_n]
-            num_basis_states_g = greedy_basis[:nstates_n]
-            num_basis_states_c = greedy_basis[nstates_n:]
-            num_basis_states_d = greedy_basis[nstates_n:]
-        
-        BAerr_array[s] = errBA
-        improv_metric[s] = (finalerr-errBA)
-        print(BAerr_array[s],improv_metric[s])
-        if (improv_metric[s] > test_improv):
-            temp_basis_f = num_basis_states_f
-            temp_basis_c = num_basis_states_c
-            test_improv = improv_metric[s]
+    # initialize errors
+    errBA = 0.0
+    err_n = [0.0]*nstates_n
+    err_p = [0.0]*nstates_p
+    wf_error_n = [0.0]*nstates_n
+    wf_error_p = [0.0]*nstates_p
+
+    # set the number of basis states and set guess
+    num_basis_states_wf = np.array(num_basis_states_f+num_basis_states_g+num_basis_states_c+num_basis_states_d, dtype=np.int32)
+    initial_guess_array = func.initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson[0],num_basis_meson[1],num_basis_meson[2],num_basis_meson[3],num_basis_meson[4],[energy_guess]*nstates_n,[energy_guess]*nstates_p)
     
-    max_index = np.argmax(improv_metric) # get best configuration improvement
-    finalerr = BAerr_array[max_index]    # update the new best error
-    num_basis_states_base_f = temp_basis_f
-    num_basis_states_base_g = temp_basis_f
-    num_basis_states_base_c = temp_basis_c
-    num_basis_states_base_d = temp_basis_c
-    print(improv_metric,max_index,finalerr)
+    # compute the RBM for nsamples
+    start_time = time.time()
+    for j in range(n_samples):
+        params = param_set[j,:]
+        params_array = np.array(params, dtype=np.double)
+        solution = root(c_wrapper2, x0=initial_guess_array, args=(params_array,num_basis_states_wf,num_basis_states_meson,), jac=None, method='hybr',options={'col_deriv': 1, 'xtol': 1e-8})
+        BA_mev = (BA_function(solution.x,params_array,num_basis_states_wf,num_basis_states_meson)*13.269584506383948 - 0.75*41.0*A**(-1.0/3.0))/A - 939
+        
+        # get the error in the energies
+        for k in range(nstates_n):
+            err_n[k] = err_n[k] + abs(solution.x[k-nstates_n-nstates_p]-real_en_n[j,k])
+        for k in range(nstates_p):
+            err_p[k] = err_p[k] + abs(solution.x[k-nstates_p]-real_en_p[j,k])
+        errBA = errBA + abs(actual_results[j][0] - BA_mev)
+    end_time = time.time()
+    errBA = errBA/n_samples
+    err_n = [element/n_samples for element in err_n]
+    err_p = [element/n_samples for element in err_p]
+    greedy_basis = num_basis_states_f+num_basis_states_c
+    err = err_n + err_p
+    func.greedy(err,greedy_basis,n_steps)
+    num_basis_states_f = greedy_basis[:nstates_n]
+    num_basis_states_g = greedy_basis[:nstates_n]
+    num_basis_states_c = greedy_basis[nstates_n:]
+    num_basis_states_d = greedy_basis[nstates_n:]
+    print(errBA,"{:.4f} s".format(end_time - start_time),np.sum(num_basis_states_f)+np.sum(num_basis_states_c))
+    basis_fg = '  '.join(map(str, num_basis_states_f))
+    basis_cd = '  '.join(map(str, num_basis_states_c))
+    print(basis_fg)
+    print(basis_cd)
+
+    # set the number of basis states and set guess
+    num_basis_states_wf = np.array(num_basis_states_f+num_basis_states_g+num_basis_states_c+num_basis_states_d, dtype=np.int32)
+    initial_guess_array = func.initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson[0],num_basis_meson[1],num_basis_meson[2],num_basis_meson[3],num_basis_meson[4],[energy_guess]*nstates_n,[energy_guess]*nstates_p)
+    
+    errBA = 0.0
+    start_time = time.time()
+    for j in range(n_samples):
+        params = param_set[j,:]
+        params_array = np.array(params, dtype=np.double)
+        solution = root(c_wrapper2, x0=initial_guess_array, args=(params_array,num_basis_states_wf,num_basis_states_meson,), jac=None, method='hybr',options={'col_deriv': 1, 'xtol': 1e-8})
+        BA_mev = (BA_function(solution.x,params_array,num_basis_states_wf,num_basis_states_meson)*13.269584506383948 - 0.75*41.0*A**(-1.0/3.0))/A - 939
+        
+        # Reconstruct the wave functions
+        f_basis, c_basis = func.get_wf_basis_states(A,Z,nstates_n,nstates_p,num_basis_states_f,num_basis_states_c)
+        f_coeff = np.array(func.pad([[solution.x[int(np.sum(num_basis_states_f[:j])) + i] for i in range(num_basis_states_f[j])] for j in range(nstates_n)]))
+        c_coeff = np.array(func.pad([[solution.x[sum(num_basis_states_f) + sum(num_basis_states_g) + int(np.sum(num_basis_states_c[:j])) + i] for i in range(num_basis_states_c[j])] for j in range(nstates_p)]))
+        f_fields_approx, c_fields_approx = func.compute_fields(f_coeff, c_coeff, nstates_n, nstates_p, f_basis, c_basis)
+
+        # get the error in wave functions
+        # this is where i left off. need to take difference of wf and integrate
+        wf_n = [(f_fields_approx[:,i] - f_fields[i][:,j])**2 for i in range(nstates_n)]
+        wf_p = [(c_fields_approx[:,i] - c_fields[i][:,j])**2 for i in range(nstates_p)]
+        L2_n = [simps(wf_n[i],x=r_vec,axis=0) for i in range(nstates_n)]
+        L2_p = [simps(wf_p[i],x=r_vec,axis=0) for i in range(nstates_p)]
+        wf_error_n = [wf_error_n[i] + L2_n[i] for i in range(nstates_n)]
+        wf_error_p = [wf_error_p[i] + L2_p[i] for i in range(nstates_p)]
+        errBA = errBA + abs(actual_results[j][0] - BA_mev)
+    end_time = time.time()
+
+    errBA = errBA/n_samples
+    wf_error_n = [element/n_samples for element in wf_error_n]
+    wf_error_p = [element/n_samples for element in wf_error_p]
+    greedy_basis = num_basis_states_f+num_basis_states_c
+    wf_error = wf_error_n + wf_error_p
+    flag = func.greedy(wf_error,greedy_basis,n_steps)
+    num_basis_states_f = greedy_basis[:nstates_n]
+    num_basis_states_g = greedy_basis[:nstates_n]
+    num_basis_states_c = greedy_basis[nstates_n:]
+    num_basis_states_d = greedy_basis[nstates_n:]
+    print(errBA,"{:.4f} s".format(end_time - start_time),np.sum(num_basis_states_f)+np.sum(num_basis_states_c))
+    basis_fg = '  '.join(map(str, num_basis_states_f))
+    basis_cd = '  '.join(map(str, num_basis_states_c))
+    print(basis_fg)
+    print(basis_cd)
+
+    finalerr = errBA
+    if (flag == True):
+        break

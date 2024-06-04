@@ -4,10 +4,18 @@ import sympy as sp
 from scipy.linalg import svd
 from scipy.integrate import simps
 from scipy.optimize import root
+import bulk2params as trans
+
+import time
 import sys
 sys.path.append('/home/msals97/Desktop/RBM/RBM')
 
-# Define functions to be used in this script 
+# Define functions to be used in this RBM scripts
+################################################################
+################################################################
+
+# Functions used for RBM script
+################################################################
 ################################################################
 
 # Load the data from a text file
@@ -320,6 +328,9 @@ def pad(arr):
     padded_arr = np.array([np.pad(row, (0, max_length - len(row)), mode='constant') for row in arr])
     return padded_arr
 
+# These functions are used to compute weak skin
+################################################################
+
 # compute vector and tensor form factors at a given momentum transfer
 def Fv_Ft(q, vdens, tdens, rvec, r0_fm):
     q = q*r0_fm
@@ -432,6 +443,12 @@ def FchFwk(q,vdensn,vdensp,tdensn,tdensp,rvec,A,Z):
 
     return Fch-Fwk
 
+################################################################
+################################################################
+
+# Define functions used in solving the galerkin equations RBM solve script
+################################################################
+################################################################
 def initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_states_s,num_basis_states_v,num_basis_states_b,num_basis_states_l,num_basis_states_a,n_energies,p_energies):
     initial_guesses = []
     for i in range(nstates_n):
@@ -615,9 +632,35 @@ def get_basis(A, Z, nstates_n, nstates_p):
     c_basis = np.array([c_basis[i][1:,:]*np.mean(c_fields[i][10,:])/c_basis[i][10,0] for i in range(nstates_p)])
     d_basis = np.array([d_basis[i][1:,:]*np.mean(d_fields[i][10,:])/d_basis[i][10,0] for i in range(nstates_p)])
     return f_basis, g_basis, c_basis, d_basis, S_basis, V_basis, B_basis, L_basis, A_basis
+
+
+def get_wf_basis_states(A, Z, nstates_n, nstates_p, num_basis_states_f, num_basis_states_c):
+    dir = f"{A},{Z}/{A},{Z},Data"
+
+    # import state information (j, alpha, fill_frac, filetag)
+    n_labels, state_file_n = load_spectrum( dir + "/neutron_spectrum.txt")
+    p_labels, state_file_p = load_spectrum(dir + "/proton_spectrum.txt")
+
+    # Specify the wave function files for the f_wave neutrons and import
+    file_pattern = dir + "/neutron/f_wave/state{}.txt"
+    f_files = [file_pattern.format(n_labels[i]) for i in range(nstates_n)]
+    f_fields = [load_data(f_file) for f_file in f_files]
+
+    # Specify the wave function files for the f_wave protons and import 
+    # (I use c and d instead of f and g to differentiate from neutrons and protons)
+    file_pattern = dir + "/proton/c_wave/state{}.txt"
+    c_files = [file_pattern.format(p_labels[i]) for i in range(nstates_p)]
+    c_fields = [load_data(c_file) for c_file in c_files]
+
+    f_basis = [perform_pod(f_fields[i][1:,:], np.max(num_basis_states_f)) for i in range(nstates_n)]
+    c_basis = [perform_pod(c_fields[i][1:,:], np.max(num_basis_states_c)) for i in range(nstates_p)]
+
+    f_basis = np.array([f_basis[i]*np.mean(f_fields[i][10,:])/f_basis[i][10,0] for i in range(nstates_n)])
+    c_basis = np.array([c_basis[i]*np.mean(c_fields[i][10,:])/c_basis[i][10,0] for i in range(nstates_p)])
+    return f_basis, c_basis
     
 def hartree_RBM(A,nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson,params,c_function_wrapper,BA_function_wrapper,Rch_function_wrapper,Wkskin_wrapper,n_energies,p_energies,jac=None):
-    if (A==100):
+    if (A==132):
         initial_guess_array = initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson[0],num_basis_meson[1],num_basis_meson[2],num_basis_meson[3],num_basis_meson[4],[60.0]*nstates_n,[60.0]*nstates_p)
     else:
         initial_guess_array = initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson[0],num_basis_meson[1],num_basis_meson[2],num_basis_meson[3],num_basis_meson[4],n_energies,p_energies)
@@ -642,3 +685,119 @@ def hartree_RBM(A,nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_
     
     return BA_mev, Rcharge, FchFwk, en_n, en_p
 
+################################################################
+################################################################
+
+# Define functions used in Bayesian script
+################################################################
+################################################################
+def c_function_wrapper(lib):
+    def wrapper(x, params):
+        y = np.empty_like(x, dtype=np.double)
+        lib.c_function(x, y, params)
+        return y
+    return wrapper
+
+def jacobian_wrapper(lib):
+    def wrapper(x, params):
+        jac = np.empty((len(x), len(x)), dtype=np.double)
+        lib.compute_jacobian(x, jac.reshape(-1), params)
+        return jac.T
+    return wrapper
+
+def BA_wrapper(lib):
+    def wrapper(x,params):
+        BA = lib.BA_function(x,params)
+        return BA
+    return wrapper
+
+def Wkskin_wrapper(lib):
+    def wrapper(x):
+        res = lib.Wkskin(x)
+        return res
+    return wrapper
+
+def Rch_wrapper(lib):
+    def wrapper(x):
+        res = lib.Rch(x)
+        return res
+    return wrapper
+
+# define the prior distribution
+def compute_prior(bulks):
+    prior_data = [-16.0, 0.15, 0.6, 230.0, 34.0, 80.0, 100.0, 0.03, 500.0]
+    prior_unct = [1.0  , 0.04, 0.1, 10.0 , 4.0 , 40.0, 500.0, 0.03, 50.0 ]
+    lkl= 1.0
+    for i in range(len(prior_data)):
+        lkl = lkl*np.exp(-0.5*(prior_data[i]-bulks[i])**2/prior_unct[i]**2)
+    return lkl
+
+# define the lkl function for a single nucleus
+def compute_lkl(exp_data,BA_mev_th, Rch_th, FchFwk_th):
+    lkl = np.exp(-0.5*(exp_data[0]-BA_mev_th)**2/exp_data[1]**2)
+    if (exp_data[2] != -1):
+        lkl = lkl*np.exp(-0.5*(exp_data[2]-Rch_th)**2/exp_data[3]**2)
+    if (FchFwk_th != -1):
+        lkl = lkl*np.exp(-0.5*(exp_data[4]-FchFwk_th)**2/exp_data[5]**2)
+        #lkl = lkl*1.0
+    return lkl
+
+# define the metropolis hastings algorithm
+def metropolis(post0, postp, bulks_0, bulks_p, acc_counts, index, n_params):
+    # metroplis hastings step
+    r = np.random.uniform(0,1)
+    a = postp/post0
+    if (a>1):
+        a=1.0
+    if (r <= a):
+        post0 = postp
+        for k in range(n_params):
+            bulks_0[k] = bulks_p[k] # accept the proposed changes
+        acc_counts[index]+=1   # count how many times the changes are accepted
+    return post0
+
+# adaptive MCMC method to reach acceptance rates
+def adaptive_width(iter,n_check,arate,acc_counts,stds,agoal,index):
+    if ((iter+1)%n_check == 0):
+        arate[index] = acc_counts[index]/n_check
+        acc_counts[index] = 0
+        if (arate[index] < agoal):
+            stds[index] = 0.9*stds[index]      # if acceptance rate is too low then decrease the range
+        elif (arate[index] > agoal):
+            stds[index] = 1.1*stds[index]      # if acceptance rate is too high then increase the range
+
+# function to change a single parameter in MCMC
+def param_change(n_params, bulks_0, bulks_p, stds, mw, mp, md, index):
+    for k in range(n_params):
+        bulks_p[k] = bulks_0[k] # copy old values
+    bulks_p[index] = np.random.normal(bulks_0[index],stds[index])      # change one param
+    params, flag = trans.get_parameters(bulks_p[0],bulks_p[1],bulks_p[2],bulks_p[3],bulks_p[4],bulks_p[5],bulks_p[6],bulks_p[7],bulks_p[8],mw,mp,md)
+    return params, flag
+
+######################################################################
+######################################################################
+
+# functions used in getting ideal number of basis
+######################################################################
+
+def greedy(err, basis, N):
+    flag = False  # Initialize flag
+    count = 0
+    max_basis = 6
+    while(count<N):
+        max_index = np.argmax(err)
+        if basis[max_index] == max_basis:
+            err[max_index] = -100  # Exclude the current maximum from further consideration
+        else:
+            basis[max_index] += 1
+            count += 1
+            err[max_index] = -100  # Exclude the current maximum from further consideration
+    
+    if all(val == max_basis for val in basis):
+        flag = True
+    return flag
+
+def compute_fields(f_coeff,c_coeff,nstates_n,nstates_p,f_basis,c_basis):
+    f_fields_approx = np.transpose([np.dot(f_basis[i], f_coeff[i]) for i in range(nstates_n)])
+    c_fields_approx = np.transpose([np.dot(c_basis[i], c_coeff[i]) for i in range(nstates_p)])
+    return f_fields_approx, c_fields_approx

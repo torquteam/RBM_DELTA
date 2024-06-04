@@ -21,7 +21,3 @@ double Wkskin(double*x) {
     return FchFwk;
 }
 
-16,8    well conditioned [20,70]
-40,20   well conditioned [30,69]
-48,20   well conditioned [20,70]
-
