@@ -20,11 +20,11 @@ if __name__ == "__main__":
 
     # User Input
     ##################################################################
-    #specify the nucleus
-    nucleus = 7
+    #specify the nucleus (6 broken)
+    nucleus = 8
 
     # Jacobian computation
-    jac = True
+    jac = False
     ##################################################################
 
     # Specify the number of proton and neutron states
@@ -60,17 +60,17 @@ if __name__ == "__main__":
     r_vec = func.load_data(dir + "/rvec.txt")[1:]
 
     # Import basis numbers
-    
+    """
     num_basis_states_f, num_basis_states_g, num_basis_states_c, num_basis_states_d, num_basis_meson = func.import_basis_numbers(A,Z)
     num_basis_states_s = num_basis_meson[0]
     num_basis_states_v = num_basis_meson[1]
     num_basis_states_b = num_basis_meson[2]
     num_basis_states_l = num_basis_meson[3]
     num_basis_states_a = num_basis_meson[4]
-    
+    """
     # For greedy optimization
     # Specify the number of basis states and masses
-    '''
+    
     num_basis_states_f = [6]*nstates_n
     num_basis_states_g = [6]*nstates_n
     num_basis_states_c = [6]*nstates_p
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     num_basis_states_b = 7
     num_basis_states_l = 7
     num_basis_states_a = 7
-    '''
+    
 
     # Import state information (j, alpha, fill_frac)
     n_labels, state_file_n = func.load_spectrum( dir + "/neutron_spectrum.txt")
