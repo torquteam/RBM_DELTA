@@ -14,7 +14,7 @@ print("Current Working directory:", current_directory)
 
 # Specify the nucleus
 ##################################################################
-nucleus = 0
+nucleus = 2
 ##################################################################
 
 # Specify the number of proton and neutron states
@@ -136,9 +136,9 @@ start_time = time.time()
 errBA = 0
 errRch = 0
 errWk = 0
-for i in range(1):
+for i in range(n_samples):
     params = param_set[i,:]
-    params = [4.91160767e+02, 1.05813435e+02, 1.82548004e+02, 1.67125801e+02, 1.10939990e+02, 3.36134447e+00, -1.20853287e-03, 2.80633218e-02, 6.69791611e-03]
+    #params = [4.91160767e+02, 1.05813435e+02, 1.82548004e+02, 1.67125801e+02, 1.10939990e+02, 3.36134447e+00, -1.20853287e-03, 2.80633218e-02, 6.69791611e-03]
     params_array = np.array(params, dtype=np.double)
 
     solution = root(c_wrapper2, x0=initial_guess_array, args=(params_array,num_basis_states_wf,num_basis_states_meson,), jac=None, method='hybr',options={'col_deriv': 1, 'xtol': 1e-8})
@@ -188,7 +188,7 @@ n_steps = 2
 exp = np.loadtxt("exp_data.txt")
 thresh = -0.001*exp[nucleus][2]
 flag = False
-while(finalerr>0.01):
+while(finalerr>thresh):
 
     # initialize errors
     errBA = 0.0
