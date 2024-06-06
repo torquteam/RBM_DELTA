@@ -14,7 +14,7 @@ print("Current Working directory:", current_directory)
 
 # Specify the nucleus
 ##################################################################
-nucleus = 2
+nucleus = 9
 ##################################################################
 
 # Specify the number of proton and neutron states
@@ -181,6 +181,7 @@ f_fields = [func.load_data(f_file) for f_file in f_files]
 file_pattern = dir + "/proton/c_wave/val_{}.txt"
 c_files = [file_pattern.format(p_labels[i]) for i in range(nstates_p)]
 c_fields = [func.load_data(c_file) for c_file in c_files]
+
 
 r_vec = func.load_data(dir + "/rvec.txt")[1:]
 n_steps = 2
