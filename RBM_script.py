@@ -21,7 +21,7 @@ if __name__ == "__main__":
     # User Input
     ##################################################################
     #specify the nucleus (6 broken)
-    nucleus = 7
+    nucleus = 0
 
     # Jacobian computation
     jac = False
