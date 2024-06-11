@@ -14,7 +14,7 @@ print("Current Working directory:", current_directory)
 
 # Specify the nucleus
 ##################################################################
-nucleus = 5
+nucleus = 0
 ##################################################################
 
 # Specify the number of proton and neutron states
