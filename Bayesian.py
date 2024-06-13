@@ -13,9 +13,14 @@ import math
 current_directory = os.getcwd()
 print("Current Working directory:", current_directory)
 
+# number of nuclei
+n_nuclei = 8
+
 # list of nuclei atomic masses and numbers (to be used in calibration)
-A=[16,40,48,68,90,100,116,132,144,208]
-Z=[8,20,20,28,40,50,50,50,62,82]
+#A=[16,40,48,68,90,100,116,132,144,208]
+#Z=[8,20,20,28,40,50,50,50,62,82]
+A=[16,40,48,68,90,100,132,208]
+Z=[8,20,20,28,40,50,50,82]
 
 # import c functions for all nuclei (speeds up computation)
 ###############################################################################
@@ -23,7 +28,7 @@ Z=[8,20,20,28,40,50,50,50,62,82]
 libraries = []
 
 # Load libraries
-for i in range(10):
+for i in range(n_nuclei):
     lib = ctypes.CDLL(f'./{A[i]},{Z[i]}/c_functions.so')
     libraries.append(lib)
 
@@ -63,12 +68,14 @@ for lib in libraries:
 ######################################################################################
 
 # define nstates for neutron and proton
-nstates_n = [3,6,7,10,11,11,14,16,16,22]
-nstates_p = [3,6,6,7,10,11,11,11,13,16]
+#nstates_n = [3,6,7,10,11,11,14,16,16,22]
+#nstates_p = [3,6,6,7,10,11,11,11,13,16]
+nstates_n = [3,6,7,10,11,11,16,22]
+nstates_p = [3,6,6,7,10,11,11,16]
 
 # define the directories to retrieve the galerkin equations and basis numbers
 dirs = []
-for i in range(10):
+for i in range(n_nuclei):
     dir = f"{A[i]},{Z[i]}/{A[i]},{Z[i]},Data"
     dirs.append(dir)
 
@@ -78,7 +85,7 @@ num_basis_states_g_list = []
 num_basis_states_c_list = []
 num_basis_states_d_list = []
 num_basis_meson_list = []
-for i in range(10):
+for i in range(n_nuclei):
     num_basis_states_f, num_basis_states_g, num_basis_states_c, num_basis_states_d, num_basis_meson = func.import_basis_numbers(A[i],Z[i])
     f_basis, g_basis, c_basis, d_basis, S_basis, V_basis, B_basis, L_basis, A_basis = func.get_basis(A[i],Z[i],nstates_n[i],nstates_p[i])
     num_basis_states_f_list.append(num_basis_states_f)
@@ -94,12 +101,15 @@ def compute_nuclei_v2(num_nuclei,params,flag,n_energies_list,p_energies_list):
         print("flagged")
         return 0.0
     for i in range(num_nuclei):
+        #start_time = time.time()
         BA_mev_th, Rch_th, Fch_Fwk_th, en_n, en_p = func.hartree_RBM(A[i],nstates_n[i],nstates_p[i],num_basis_states_f_list[i],num_basis_states_g_list[i],num_basis_states_c_list[i],num_basis_states_d_list[i],num_basis_meson_list[i],params,wrapper_functions_list[i],BA_wrappers_list[i],Rch_wrappers_list[i],Wkskin_wrappers_list[i],n_energies_list[i],p_energies_list[i],jac=jacobian_wrappers_list[i])
+        #end_time = time.time()
+        #print(A[i], end_time-start_time)
         n_energies_list[i] = en_n
         p_energies_list[i] = en_p
         #print(A[i],BA_mev_th,Rch_th,Fch_Fwk_th)
         lkl = lkl*func.compute_lkl(exp_data[i,:],BA_mev_th,Rch_th,Fch_Fwk_th)
-        if (abs(BA_mev_th) > abs(exp_data[i,0])+0.1 or abs(BA_mev_th) < abs(exp_data[i,0])-0.1):
+        if (abs(BA_mev_th) > abs(exp_data[i,0])+0.2 or abs(BA_mev_th) < abs(exp_data[i,0])-0.2):
             print("error: ",params,A[i],BA_mev_th)
             return 0.0
 
@@ -107,7 +117,7 @@ def compute_nuclei_v2(num_nuclei,params,flag,n_energies_list,p_energies_list):
 
 # MCMC algorithm to be called in parallel
 def MCMC_worker(args):
-    iterations_burn, iterations_run, process_id, post0 = args
+    iterations_burn, iterations_run, process_id, post0, num_nuclei = args
     np.random.seed(process_id)
     start_time = time.time()
     with open(f"burnin_out_{process_id}.txt", "w") as output_file:
@@ -119,7 +129,7 @@ def MCMC_worker(args):
 
                 # get the posterior
                 prior = func.compute_prior(bulks_p)
-                lklp = compute_nuclei_v2(n_nuclei,params,flag,energy_guess_n_list,energy_guess_p_list)
+                lklp = compute_nuclei_v2(num_nuclei,params,flag,energy_guess_n_list,energy_guess_p_list)
                 if (lklp == 0):
                     print(bulks_p)
                 postp = prior*lklp
@@ -154,7 +164,7 @@ def MCMC_worker(args):
 
                 # get the posterior
                 prior = func.compute_prior(bulks_p)
-                lklp = compute_nuclei_v2(n_nuclei,params,flag,energy_guess_n_list,energy_guess_p_list)
+                lklp = compute_nuclei_v2(num_nuclei,params,flag,energy_guess_n_list,energy_guess_p_list)
                 postp = prior*lklp
 
                 # metroplis hastings step
@@ -166,7 +176,7 @@ def MCMC_worker(args):
             print("",file=output_file)
             print(f"{i+1} completed")
 
-def posterior_observables(posterior_file, n_energies_list, p_energies_list, n_params):
+def posterior_observables(posterior_file, n_energies_list, p_energies_list, n_params, num_nuclei):
     posterior = np.loadtxt(posterior_file)
     n_samples = len(posterior)
     with open("Posterior.txt", "w") as output_file:
@@ -175,7 +185,7 @@ def posterior_observables(posterior_file, n_energies_list, p_energies_list, n_pa
             params, flag = trans.get_parameters(bulks[0],bulks[1],bulks[2],bulks[3],bulks[4],bulks[5],bulks[6],bulks[7],mw,mp)
             for k in range(n_params):
                 print(f"{bulks[k]}",file=output_file, end='  ')
-            for j in range(n_nuclei):
+            for j in range(num_nuclei):
                 BA_mev_th, Rch_th, Fch_Fwk_th, en_n, en_p = func.hartree_RBM(A[j],nstates_n[j],nstates_p[j],num_basis_states_f_list[j],num_basis_states_g_list[j],num_basis_states_c_list[j],num_basis_states_d_list[j],num_basis_meson_list[j],params,wrapper_functions_list[j],BA_wrappers_list[j],Rch_wrappers_list[j],Wkskin_wrappers_list[j],n_energies_list[j],p_energies_list[j],jac=jacobian_wrappers_list[j])
                 if (j == 2 or j == 9):
                     print(f"{BA_mev_th}  {Rch_th}  {Fch_Fwk_th}",file=output_file, end='  ')
@@ -192,7 +202,7 @@ exp_data = exp_data_full[:,2:]
 # import state information (j, alpha, fill_frac, filetag)
 energy_guess_p_list = []
 energy_guess_n_list = []
-for i in range(10):
+for i in range(n_nuclei):
     energy_guess_p = [50.0 for j in range(nstates_p[i])]
     energy_guess_n = [50.0 for j in range(nstates_n[i])]
     energy_guess_n_list.append(energy_guess_n)
@@ -213,7 +223,6 @@ n_params = 9
 mw = 782.5
 mp = 763.0
 md = 980.0
-n_nuclei = 10
 
 # adaptive specifications for MCMC
 acc_counts = [0]*n_params
@@ -235,7 +244,7 @@ if __name__ == "__main__":
     n_processes = 4
 
 
-    inputs = [(nburnin, nruns, i, post0) for i in range(n_processes)]
+    inputs = [(nburnin, nruns, i, post0, n_nuclei) for i in range(n_processes)]
     with  multiprocessing.Pool(processes=n_processes) as pool:
         results = pool.map(MCMC_worker, inputs)
 
