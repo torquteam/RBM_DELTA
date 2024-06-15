@@ -111,7 +111,6 @@ def compute_nuclei_v2(num_nuclei,params,flag,n_energies_list,p_energies_list):
         lkl = lkl*func.compute_lkl(exp_data[i,:],BA_mev_th,Rch_th,Fch_Fwk_th)
         if (abs(BA_mev_th) > abs(exp_data[i,0])+0.2 or abs(BA_mev_th) < abs(exp_data[i,0])-0.2):
             print("error: ",params,A[i],BA_mev_th)
-            return 0.0
 
     return lkl
 

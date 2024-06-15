@@ -14,18 +14,18 @@ print("Current Working directory:", current_directory)
 
 # Specify the nucleus
 ##################################################################
-nucleus = 1
+nucleus = 2
 ##################################################################
 
 # Specify the number of proton and neutron states
-nstates_n_list = [3,6,7,10,11,11,14,16,16,22]
-nstates_p_list = [3,6,6,7, 10,11,11,11,13,16]
+nstates_n_list = [3,6,7,10,11,11,16,22]
+nstates_p_list = [3,6,6,7, 10,11,11,16]
 nstates_n = nstates_n_list[nucleus]
 nstates_p = nstates_p_list[nucleus]
 
 # Specify the number of protons and neutrons (for file specification purposes)
-A_list = [16,40,48,68,90,100,116,132,144,208]
-Z_list = [8, 20,20,28,40,50, 50, 50, 62, 82]
+A_list = [16,40,48,68,90,100,132,208]
+Z_list = [8, 20,20,28,40,50 , 50, 82]
 A = A_list[nucleus]
 Z = Z_list[nucleus]
 
@@ -127,7 +127,7 @@ print(n_samples,"samples")
 
 # Initial guess setup
 ##################################################
-energy_guess = 60.0
+energy_guess = 50.0
 initial_guess_array = func.initial_guess(nstates_n,nstates_p,num_basis_states_f,num_basis_states_g,num_basis_states_c,num_basis_states_d,num_basis_meson[0],num_basis_meson[1],num_basis_meson[2],num_basis_meson[3],num_basis_meson[4],[energy_guess]*nstates_n,[energy_guess]*nstates_p)
 
 # Nonlinear solve
@@ -138,7 +138,7 @@ errRch = 0
 errWk = 0
 for i in range(n_samples):
     params = param_set[i,:]
-    #params = [4.91160767e+02, 1.05813435e+02, 1.82548004e+02, 1.67125801e+02, 1.10939990e+02, 3.36134447e+00, -1.20853287e-03, 2.80633218e-02, 6.69791611e-03]
+    params = [ 4.94679707e+02,  1.03129096e+02,  1.74759931e+02,  1.01810207e+03, 1.41420279e+03,  3.30711283e+00, -4.30767018e-04,  2.76925952e-02, 1.28535564e-03]
     params_array = np.array(params, dtype=np.double)
 
     solution = root(c_wrapper2, x0=initial_guess_array, args=(params_array,num_basis_states_wf,num_basis_states_meson,), jac=None, method='hybr',options={'col_deriv': 1, 'xtol': 1e-8})
@@ -184,11 +184,11 @@ c_fields = [func.load_data(c_file) for c_file in c_files]
 
 
 r_vec = func.load_data(dir + "/rvec.txt")[1:]
-n_steps = 2
 
 exp = np.loadtxt("exp_data.txt")
 thresh = -0.001*exp[nucleus][2]
 flag = False
+max_basis = 6
 while(finalerr>thresh):
 
     # initialize errors
@@ -222,7 +222,7 @@ while(finalerr>thresh):
     err_p = [element/n_samples for element in err_p]
     greedy_basis = num_basis_states_f+num_basis_states_c
     err = err_n + err_p
-    func.greedy(err,greedy_basis,n_steps)
+    func.greedy(err,greedy_basis,1,max_basis)
     num_basis_states_f = greedy_basis[:nstates_n]
     num_basis_states_g = greedy_basis[:nstates_n]
     num_basis_states_c = greedy_basis[nstates_n:]
@@ -267,7 +267,7 @@ while(finalerr>thresh):
     wf_error_p = [element/n_samples for element in wf_error_p]
     greedy_basis = num_basis_states_f+num_basis_states_c
     wf_error = wf_error_n + wf_error_p
-    flag = func.greedy(wf_error,greedy_basis,n_steps)
+    flag = func.greedy(wf_error,greedy_basis,1,max_basis)
     num_basis_states_f = greedy_basis[:nstates_n]
     num_basis_states_g = greedy_basis[:nstates_n]
     num_basis_states_c = greedy_basis[nstates_n:]

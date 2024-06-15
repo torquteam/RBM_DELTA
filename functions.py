@@ -780,10 +780,9 @@ def param_change(n_params, bulks_0, bulks_p, stds, mw, mp, md, index):
 # functions used in getting ideal number of basis
 ######################################################################
 
-def greedy(err, basis, N):
+def greedy(err, basis, N, max_basis):
     flag = False  # Initialize flag
     count = 0
-    max_basis = 6
     while(count<N):
         max_index = np.argmax(err)
         if basis[max_index] == max_basis:
